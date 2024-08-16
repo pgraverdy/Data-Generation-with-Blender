@@ -11,6 +11,8 @@ class Render:
         # Define the scene information
         self.scene = bpy.data.scenes['Scene']
         # Define the information relevant to the <bpy.data.objects>
+        for key, value in bpy.data.objects.items(): 
+            print(key, value) 
         self.camera = bpy.data.objects['Camera']
         self.axis = bpy.data.objects['Main Axis']
         self.light_1 = bpy.data.objects['Light1']
