@@ -7,6 +7,7 @@ import time
 import math as m
 import os
 import random
+from datetime import datetime
 
 class Render:
     def __init__(self):
@@ -46,7 +47,7 @@ class Render:
         objs = []
         for obj in self.obj_names:
             objs.append(bpy.data.objects[obj])
-        
+
         return objs
 
     def find_bounding_box(self, obj):
@@ -157,9 +158,104 @@ class Render:
     def set_camera(self):
         self.axis.rotation_euler = (0, 0, 0)
         self.axis.location = (0, 0, 0)
-        # self.camera.location = (0, 0, 3)
-    
+   
+    def add_date_time_prefix(self):
+        # Get the current date and time
+        now = datetime.now()
+        
+        # Format the date and time as yyyy-mm-dd hh:mm
+        date_time_str = now.strftime("%Y-%m-%d-%H-%M")
+        
+        # Concatenate the formatted date and time with the image name
+        new_prefix = f"{date_time_str}"
+        
+        return new_prefix
+
+    def calculate_rendering_dataframe(self, rotation_step):
+
+        random.seed(random.randint(1,1000))
+
+        rendering_df = pd.DataFrame(columns=['Name', 
+                                        'energy1', 'energy2'
+                                        'samples', 'percentage',
+                                        'x_pix', 'y_pix'
+                                        'axis_rotation',
+                                        'cam_location'
+                                        ])
+
+        iteration = 1
+
+        zmin = int(self.camera_z_limits[0] * 10)
+        zmax = int(self.camera_z_limits[1] * 10)
+        for d in range(zmin+2, zmax+3, 2):
+            camera_location = (0, 0, d/10)
+            min_thetax = (-1)*self.axis_x_rot_limit[0] + 90
+            max_thetax = (-1)*self.axis_x_rot_limit[1] + 90
+
+            for thetax in range(min_thetax, max_thetax+1, rotation_step):
+                thetax_r = 90 - thetax
+                render_counter +=1
+                min_thetay = (-1) * self.axis_y_rot_limit[0] + 90
+                max_thetay = (-1) * self.axis_y_rot_limit[1] + 90
+
+                for thetaz in range(self.axis_z_rot_limit[0], self.axis_z_rot_limit[1]+1,rotation_step):
+                    render_counter += 1
+                    axis_rotation = (thetax_r, 0, thetaz)
+                    #print('Axis rotation at:', axis_rotation)
+
+                    formatted_number = "{:05d}".format(iteration)
+                    iteration+=1
+
+                    iteration_name = f'img_{formatted_number}_{iteration}'
+
+                    # self.xpix = random.randint(500, 1500)
+                    # self.ypix = random.randint(500, 1500)
+                    # self.percentage = random.randint(50, 100)
+                    # samples = random.randint(25, 100) 
+
+                    new_row = {'name': iteration_name, 
+                               'energy1': random.randint(0,30), 
+                               'energy2': random.randint(4,20), 
+                               'samples': 25, 
+                               'percentage': 100, 
+                               'x_pix': 640, 
+                               'y_pix': 480, 
+                               'axis_rotation': axis_rotation, 
+                               'cam_location': 35}
+                    rendering_df = rendering_df.append(new_row, ignore_index=True)
+
+        return rendering_df
+
+    def render_row (self, row):
+        # Define random parameters
+        self.xpix = row.xpix
+        self.ypix = row.ypix
+        self.percentage = row.percentage
+        self.axis.rotation_euler = row.axis_rotation
+        self.light_1.data.energy = row.energy1
+        self.light_2.data.energy = row.energy2
+              
+        # Render image
+        image_name = row.name + '.png'
+        self.export_render(self.xpix, self.ypix, self.percentage, row.samples, self.images_filepath, image_name)
+
+        # Render labels
+        label_name = row.name + '.txt'
+        label_fullfilename = self.labels_filepath + '/' + label_name
+        text_file = open(label_fullfilename, 'w+')
+        label_coordinates_dict, text_coordinates = self.get_all_coordinates(self.xpix*self.percentage*0.01, self.ypix*self.percentage*0.01)
+        splitted_coordinates = text_coordinates.split('\n')[:-1]
+        text_file.write('\n'.join(splitted_coordinates))
+        text_file.close()
+        
+    def window_rendering_loop (start_iter, end_iter, iterations):
+        subset = iterations.iloc[start_iter:end_iter]
+        for index, row in subset.iterrows():
+            print(index, row)
+
+
     def calculate_n_renders(self, rotation_step):
+
         zmin = int(self.camera_z_limits[0] * 10)
         zmax = int(self.camera_z_limits[1] * 10)
 
@@ -167,13 +263,13 @@ class Render:
         rotation_step = rotation_step
 
         for d in range(zmin+2, zmax+3, 2):
-            camera_location = (0,0,d/10)
+            camera_location = (0, 0, d/10)
             #print('Camera location at:', camera_location)
             render_counter +=1
             min_thetax = (-1)*self.axis_x_rot_limit[0] + 90
             max_thetax = (-1)*self.axis_x_rot_limit[1] + 90
 
-            for thetax in range(min_thetax, max_thetax+1,rotation_step):
+            for thetax in range(min_thetax, max_thetax+1, rotation_step):
                 thetax_r = 90 - thetax
                 render_counter +=1
                 min_thetay = (-1) * self.axis_y_rot_limit[0] + 90
@@ -296,4 +392,8 @@ class Render:
 
 r = Render()
 r.set_camera()
-r.main_rendering_loop(10)
+
+# r.main_rendering_loop(10)
+rendering_df = r.calculate_rendering_dataframe(10)
+
+r.window_rendering_loop (1,10, rendering_df)
