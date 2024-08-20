@@ -1,16 +1,20 @@
-# Python script to generate YOLO dataset with Kleeman objects 
-#
-#
+## Python script to generate YOLO dataset with Kleeman objects 
+
 import bpy
 import numpy as np
-import time
 import math as m
 import os
 import random
 from datetime import datetime
 import pandas as pd
+import sys
 
-class Render:
+##
+##
+##
+
+class BlenderRender:
+
     def __init__(self):
         # Scene information
         self.scene = bpy.data.scenes['Scene']
@@ -404,10 +408,37 @@ class Render:
 
         bpy.ops.render.render(write_still=True)
 
-r = Render()
-r.set_camera()
 
-# r.main_rendering_loop(10)
-rendering_df = r.calculate_rendering_dataframe(10)
-# print(rendering_df)
-r.window_rendering_loop (1, 10, rendering_df)
+
+
+##
+##
+##
+
+argv = sys.argv
+
+try:
+    index = argv.index("--") + 1
+    argv = argv[index:]
+
+    r = BlenderRender()
+    r.set_camera()
+
+    if argv[0] == 'setup':
+        rendering_df = r.calculate_rendering_dataframe(10)
+        pickle_filename = argv[1]
+        nb_renders = len(rendering_df)
+        print (f'Generated dataframe with nb configurations: {nb_renders}')
+        rendering_df.to_pickle(pickle_filename)
+    elif argv[0] == 'generate':
+        pickle_filename = argv[1]
+        start_row = argv[2]
+        end_row = argv[3]
+        rendering_df = pd.read_pickle(pickle_filename)
+        r.window_rendering_loop (start_row, end_row, rendering_df)
+    else:
+        print("usage requires command line arguments for Python script. Either '... -- setup filename' (to generate the picke file) or '... -- generate filename istart iend' (to use the generated pickle and generate images for the configs between istart and iend) ")
+
+except ValueError:
+    print("usage requires command line arguments for Python script. Either '... -- setup filename' (to generate the picke file) or '... -- generate filename istart iend' (to use the generated pickle and generate images for the configs between istart and iend) ")
+    exit()
