@@ -8,6 +8,7 @@ import math as m
 import os
 import random
 from datetime import datetime
+import pandas as pd
 
 class Render:
     def __init__(self):
@@ -21,7 +22,10 @@ class Render:
         self.obj_names = [
         #'Rose Flower', 'Blue Square', 'Green star', 'Yellow hexagon', 'Orange losange',
         #          'Rose oval', 'Blue rectangle', 'Green circle', 'Orange triangle',
-                  'Support_Kleeman_300_B', 'Support_Kleeman_300_BBRV', 'Support_Kleeman_300_BBRVb', 'Support_Kleeman_300_BBRVc']
+        #          'Support_Kleeman_300_B', 
+        'Support_Kleeman_300_BBRV', 'Support_Kleeman_300_BBRVb'
+        #, 'Support_Kleeman_300_BBRVc'
+        ]
 
         self.objects = self.create_objects()
 
@@ -175,15 +179,21 @@ class Render:
 
         random.seed(random.randint(1,1000))
 
-        rendering_df = pd.DataFrame(columns=['Name', 
-                                        'energy1', 'energy2'
-                                        'samples', 'percentage',
-                                        'x_pix', 'y_pix'
-                                        'axis_rotation',
-                                        'cam_location'
+        rendering_df = pd.DataFrame(columns=['filename', 
+                                        'energy1', 
+                                        'energy2',
+                                        'samples', 
+                                        'percentage',
+                                        'x_pix', 
+                                        'y_pix', 
+                                        'axis_x', 
+                                        'axis_y', 
+                                        'axis_z',
+                                        'cam_distance'
                                         ])
 
         iteration = 1
+        formatted_date = self.add_date_time_prefix()
 
         zmin = int(self.camera_z_limits[0] * 10)
         zmax = int(self.camera_z_limits[1] * 10)
@@ -194,53 +204,58 @@ class Render:
 
             for thetax in range(min_thetax, max_thetax+1, rotation_step):
                 thetax_r = 90 - thetax
-                render_counter +=1
                 min_thetay = (-1) * self.axis_y_rot_limit[0] + 90
                 max_thetay = (-1) * self.axis_y_rot_limit[1] + 90
 
                 for thetaz in range(self.axis_z_rot_limit[0], self.axis_z_rot_limit[1]+1,rotation_step):
-                    render_counter += 1
                     axis_rotation = (thetax_r, 0, thetaz)
                     #print('Axis rotation at:', axis_rotation)
 
                     formatted_number = "{:05d}".format(iteration)
                     iteration+=1
 
-                    iteration_name = f'img_{formatted_number}_{iteration}'
+                    iteration_name = f'img_{formatted_date}_{formatted_number}'
 
                     # self.xpix = random.randint(500, 1500)
                     # self.ypix = random.randint(500, 1500)
                     # self.percentage = random.randint(50, 100)
                     # samples = random.randint(25, 100) 
-
-                    new_row = {'name': iteration_name, 
+                    # print(axis_rotation)
+                    new_row = pd.DataFrame({'filename': iteration_name, 
                                'energy1': random.randint(0,30), 
                                'energy2': random.randint(4,20), 
                                'samples': 25, 
                                'percentage': 100, 
                                'x_pix': 640, 
                                'y_pix': 480, 
-                               'axis_rotation': axis_rotation, 
-                               'cam_location': 35}
-                    rendering_df = rendering_df.append(new_row, ignore_index=True)
+                               'axis_x' : axis_rotation[0],
+                               'axis_y' : axis_rotation[1],
+                               'axis_z' : axis_rotation[2],
+                               'cam_distance': d}, 
+                               index=[0])
+                    rendering_df = pd.concat([new_row, rendering_df.loc[:]]).reset_index(drop=True)
 
         return rendering_df
 
     def render_row (self, row):
-        # Define random parameters
-        self.xpix = row.xpix
-        self.ypix = row.ypix
+        # output params        
+        self.xpix = row.x_pix
+        self.ypix = row.y_pix
         self.percentage = row.percentage
-        self.axis.rotation_euler = row.axis_rotation
+
+        # scene parameters
+        self.axis.rotation_euler = (row.axis_x, row.axis_y, row.axis_z)
         self.light_1.data.energy = row.energy1
         self.light_2.data.energy = row.energy2
-              
+        self.camera.location = (0, 0, row.cam_distance/10)     
+        
         # Render image
-        image_name = row.name + '.png'
+        print(row['filename'])
+        image_name = row.filename + '.png'
         self.export_render(self.xpix, self.ypix, self.percentage, row.samples, self.images_filepath, image_name)
 
         # Render labels
-        label_name = row.name + '.txt'
+        label_name = row.filename + '.txt'
         label_fullfilename = self.labels_filepath + '/' + label_name
         text_file = open(label_fullfilename, 'w+')
         label_coordinates_dict, text_coordinates = self.get_all_coordinates(self.xpix*self.percentage*0.01, self.ypix*self.percentage*0.01)
@@ -248,11 +263,11 @@ class Render:
         text_file.write('\n'.join(splitted_coordinates))
         text_file.close()
         
-    def window_rendering_loop (start_iter, end_iter, iterations):
+    def window_rendering_loop (self, start_iter, end_iter, iterations):
         subset = iterations.iloc[start_iter:end_iter]
         for index, row in subset.iterrows():
             print(index, row)
-
+            self.render_row(row) 
 
     def calculate_n_renders(self, rotation_step):
 
@@ -360,7 +375,6 @@ class Render:
             print('Aborted rendering operation')
             pass         
         
-        
     def render_blender(self, count_f_name):
         # Define random parameters
         random.seed(random.randint(1,1000))
@@ -395,5 +409,5 @@ r.set_camera()
 
 # r.main_rendering_loop(10)
 rendering_df = r.calculate_rendering_dataframe(10)
-
-r.window_rendering_loop (1,10, rendering_df)
+# print(rendering_df)
+r.window_rendering_loop (1, 10, rendering_df)
